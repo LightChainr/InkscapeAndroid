@@ -1,0 +1,22 @@
+# These SHAs are research candidates, not the validated build lock.
+# CI verifies reachability; P2 compatibility work decides whether they move into sources.lock.toml.
+format_version = 1
+status = "candidate"
+observed_at = "2026-07-16"
+
+[inkscape]
+url = "https://gitlab.com/inkscape/inkscape.git"
+inspection_mirror = "https://github.com/facsimiles/inkscape.git"
+commit = "85e98c11b8eb9c6cdbd46df509f99f6100056166"
+notes = "Inkscape 1.5-dev GTK4/C++20 source inspected through GitHub mirror; official GitLab reachability must pass CI."
+
+[gtk]
+url = "https://gitlab.gnome.org/GNOME/gtk.git"
+inspection_mirror = "https://github.com/GNOME/gtk.git"
+commit = "939826ae53d9b3029270546d6f3a4fb7988a7f85"
+notes = "Contains mainline Android backend/runtime inspected for event, stylus, file chooser, and content GFile behavior."
+
+[pixiewood]
+url = "https://github.com/sp1ritCS/gtk-android-builder.git"
+commit = "00b1862b6434a8778557dc3d3074f43f5fdead1b"
+notes = "Current builder candidate with target SDK 36 era changes; Linux host assumptions remain."

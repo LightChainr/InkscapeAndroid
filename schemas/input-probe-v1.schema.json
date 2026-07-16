@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/LightChainr/InkscapeAndroid/schemas/input-probe-v1.schema.json",
+  "title": "Inkscape Android input probe JSONL record",
+  "oneOf": [
+    { "$ref": "#/$defs/session" },
+    { "$ref": "#/$defs/event" },
+    { "$ref": "#/$defs/drop" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["schemaVersion", "recordType", "sessionId"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "recordType": { "type": "string" },
+        "sessionId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "session": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["recordType", "createdWallTimeMillis", "app", "device", "display", "inputDevices"],
+          "properties": {
+            "recordType": { "const": "session" },
+            "createdWallTimeMillis": { "type": "integer", "minimum": 0 },
+            "app": {
+              "type": "object",
+              "required": ["versionName", "versionCode", "buildType"],
+              "properties": {
+                "versionName": { "type": "string" },
+                "versionCode": { "type": "integer" },
+                "buildType": { "type": "string" },
+                "gitSha": { "type": "string" }
+              },
+              "additionalProperties": true
+            },
+            "device": {
+              "type": "object",
+              "required": ["manufacturer", "model", "sdkInt", "release", "fingerprint"],
+              "additionalProperties": true
+            },
+            "display": {
+              "type": "object",
+              "required": ["widthPixels", "heightPixels", "densityDpi", "refreshRateHz"],
+              "additionalProperties": true
+            },
+            "inputDevices": { "type": "array", "items": { "type": "object" } }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "event": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": [
+            "recordType", "sequence", "dispatchPath", "sampleKind",
+            "captureMonotonicNanos", "captureUptimeMillis", "eventTimeMillis", "eventTimeNanos", "downTimeMillis",
+            "actionMasked", "actionIndex", "actionButton", "pointerCount", "pointerIndex", "pointerId", "isActionPointer",
+            "toolType", "source", "deviceId", "displayId", "buttonState", "metaState", "flags", "edgeFlags", "classification", "historySize",
+            "x", "y", "rawX", "rawY", "pressure", "orientation", "tilt", "distance", "size",
+            "touchMajor", "touchMinor", "toolMajor", "toolMinor", "xPrecision", "yPrecision"
+          ],
+          "properties": {
+            "recordType": { "const": "event" },
+            "sequence": { "type": "integer", "minimum": 0 },
+            "dispatchPath": { "enum": ["touch", "hover", "generic"] },
+            "sampleKind": { "enum": ["current", "historical"] },
+            "captureMonotonicNanos": { "type": "integer", "minimum": 0 },
+            "captureUptimeMillis": { "type": "integer", "minimum": 0 },
+            "eventTimeMillis": { "type": "integer", "minimum": 0 },
+            "eventTimeNanos": { "type": ["integer", "null"], "minimum": 0 },
+            "downTimeMillis": { "type": "integer", "minimum": 0 },
+            "actionMasked": { "type": "integer" },
+            "actionIndex": { "type": "integer", "minimum": 0 },
+            "actionButton": { "type": "integer" },
+            "pointerCount": { "type": "integer", "minimum": 1 },
+            "pointerIndex": { "type": "integer", "minimum": 0 },
+            "pointerId": { "type": "integer", "minimum": 0 },
+            "isActionPointer": { "type": "boolean" },
+            "toolType": { "type": "integer" },
+            "source": { "type": "integer" },
+            "deviceId": { "type": "integer" },
+            "displayId": { "type": "integer" },
+            "buttonState": { "type": "integer" },
+            "metaState": { "type": "integer" },
+            "flags": { "type": "integer" },
+            "edgeFlags": { "type": "integer" },
+            "classification": { "type": "integer" },
+            "historySize": { "type": "integer", "minimum": 0 },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "rawX": { "type": ["number", "null"] },
+            "rawY": { "type": ["number", "null"] },
+            "pressure": { "type": "number" },
+            "orientation": { "type": "number" },
+            "tilt": { "type": "number" },
+            "distance": { "type": "number" },
+            "size": { "type": "number" },
+            "touchMajor": { "type": "number" },
+            "touchMinor": { "type": "number" },
+            "toolMajor": { "type": "number" },
+            "toolMinor": { "type": "number" },
+            "xPrecision": { "type": "number" },
+            "yPrecision": { "type": "number" }
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "drop": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["recordType", "afterSequence", "droppedRecords", "queueCapacity"],
+          "properties": {
+            "recordType": { "const": "drop" },
+            "afterSequence": { "type": "integer", "minimum": 0 },
+            "droppedRecords": { "type": "integer", "minimum": 1 },
+            "queueCapacity": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

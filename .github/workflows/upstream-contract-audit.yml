@@ -1,0 +1,50 @@
+name: Upstream contract audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"
+  pull_request:
+    paths:
+      - sources.candidates.toml
+      - scripts/materialize-source-candidates.py
+      - scripts/audit-upstream-contracts.py
+      - .github/workflows/upstream-contract-audit.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Materialize immutable upstream candidates
+        run: |
+          python3 scripts/materialize-source-candidates.py \
+            --output .out/upstream \
+            --json-out upstream-materialization.json
+
+      - name: Audit architecture contracts
+        run: |
+          python3 scripts/audit-upstream-contracts.py \
+            --workspace .out/upstream \
+            --json-out upstream-contract-audit.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-contract-audit
+          path: |
+            upstream-materialization.json
+            upstream-contract-audit.json
+          if-no-files-found: warn
