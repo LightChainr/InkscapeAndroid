@@ -27,9 +27,11 @@ EVENT_REQUIRED = {
     "captureMonotonicNanos",
     "captureUptimeMillis",
     "eventTimeMillis",
+    "eventTimeNanos",
     "downTimeMillis",
     "actionMasked",
     "actionIndex",
+    "actionButton",
     "pointerCount",
     "pointerIndex",
     "pointerId",
@@ -37,16 +39,28 @@ EVENT_REQUIRED = {
     "toolType",
     "source",
     "deviceId",
+    "displayId",
     "buttonState",
     "metaState",
     "flags",
+    "edgeFlags",
+    "classification",
     "historySize",
     "x",
     "y",
+    "rawX",
+    "rawY",
     "pressure",
     "orientation",
     "tilt",
     "distance",
+    "size",
+    "touchMajor",
+    "touchMinor",
+    "toolMajor",
+    "toolMinor",
+    "xPrecision",
+    "yPrecision",
 }
 DROP_REQUIRED = {"afterSequence", "droppedRecords", "queueCapacity"}
 
@@ -160,17 +174,51 @@ class Report:
             "captureUptimeMillis",
             "eventTimeMillis",
             "downTimeMillis",
+            "actionMasked",
+            "actionIndex",
+            "actionButton",
+            "pointerCount",
+            "pointerIndex",
+            "pointerId",
+            "toolType",
+            "source",
+            "deviceId",
+            "displayId",
+            "buttonState",
+            "metaState",
+            "flags",
+            "edgeFlags",
+            "classification",
+            "historySize",
             "x",
             "y",
             "pressure",
             "orientation",
             "tilt",
             "distance",
+            "size",
+            "touchMajor",
+            "touchMinor",
+            "toolMajor",
+            "toolMinor",
+            "xPrecision",
+            "yPrecision",
         )
         for field_name in numeric_fields:
             value = record[field_name]
             if not isinstance(value, (int, float)) or not math.isfinite(value):
                 self.errors.append(f"line {line_number}: invalid numeric field {field_name}")
+
+        nullable_numeric_fields = ("eventTimeNanos", "rawX", "rawY")
+        for field_name in nullable_numeric_fields:
+            value = record[field_name]
+            if value is not None and (
+                not isinstance(value, (int, float)) or not math.isfinite(value)
+            ):
+                self.errors.append(f"line {line_number}: invalid nullable numeric field {field_name}")
+
+        if not isinstance(record["isActionPointer"], bool):
+            self.errors.append(f"line {line_number}: isActionPointer must be boolean")
 
         if sample_kind == "current":
             key = (
