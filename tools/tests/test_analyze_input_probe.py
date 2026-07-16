@@ -37,7 +37,7 @@ class AnalyzeInputProbeTest(unittest.TestCase):
             "inputDevices": [],
         }
 
-    def event(self, sequence, event_time, action=2, flags=0):
+    def event(self, sequence, event_time, action=2, flags=0, down_time=90):
         return {
             "schemaVersion": 1,
             "recordType": "event",
@@ -49,8 +49,10 @@ class AnalyzeInputProbeTest(unittest.TestCase):
             "captureUptimeMillis": event_time,
             "eventTimeMillis": event_time,
             "eventTimeNanos": None,
+            "downTimeMillis": down_time,
             "actionMasked": action,
             "actionIndex": 0,
+            "actionButton": 0,
             "pointerCount": 1,
             "pointerIndex": 0,
             "pointerId": 7,
@@ -58,16 +60,28 @@ class AnalyzeInputProbeTest(unittest.TestCase):
             "toolType": 2,
             "source": 0x4002,
             "deviceId": 3,
+            "displayId": 0,
             "buttonState": 0,
             "metaState": 0,
             "flags": flags,
+            "edgeFlags": 0,
+            "classification": 0,
             "historySize": 0,
             "x": 10.0,
             "y": 20.0,
+            "rawX": 10.0,
+            "rawY": 20.0,
             "pressure": 0.5,
             "orientation": 0.0,
             "tilt": 0.1,
             "distance": 0.0,
+            "size": 0.2,
+            "touchMajor": 1.0,
+            "touchMinor": 1.0,
+            "toolMajor": 1.0,
+            "toolMinor": 1.0,
+            "xPrecision": 1.0,
+            "yPrecision": 1.0,
         }
 
     def test_valid_log_summary(self):
@@ -101,6 +115,25 @@ class AnalyzeInputProbeTest(unittest.TestCase):
         path = self.write_records([self.session(), drop])
         report = analyze(path)
         self.assertEqual(report.dropped_records, 4)
+
+    def test_flag_canceled_is_counted_separately(self):
+        path = self.write_records([self.session(), self.event(1, 100, action=6, flags=0x20)])
+        report = analyze(path)
+        self.assertEqual(report.canceled_pointer_records, 1)
+        self.assertEqual(report.pointer_up_with_other_flags, 0)
+
+    def test_pointer_id_reuse_does_not_create_false_interval(self):
+        path = self.write_records(
+            [
+                self.session(),
+                self.event(1, 100, down_time=90),
+                self.event(2, 108, down_time=90),
+                self.event(3, 1000, down_time=990),
+            ]
+        )
+        report = analyze(path)
+        self.assertEqual(report.interval_summary()["count"], 1)
+        self.assertEqual(report.interval_summary()["maxMs"], 8)
 
 
 if __name__ == "__main__":
