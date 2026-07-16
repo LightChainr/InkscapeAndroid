@@ -10,7 +10,6 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Locale;
 import java.util.UUID;
@@ -113,6 +112,7 @@ public final class MainActivity extends Activity {
 
             final long captureMonotonicNanos = System.nanoTime();
             final long captureUptimeMillis = SystemClock.uptimeMillis();
+            final int displayId = getDisplay() == null ? -1 : getDisplay().getDisplayId();
             final int pointerCount = event.getPointerCount();
             final int historySize = event.getHistorySize();
 
@@ -127,6 +127,7 @@ public final class MainActivity extends Activity {
                                     dispatchPath,
                                     captureMonotonicNanos,
                                     captureUptimeMillis,
+                                    displayId,
                                     pointerIndex,
                                     historyIndex));
                 }
@@ -141,6 +142,7 @@ public final class MainActivity extends Activity {
                                 dispatchPath,
                                 captureMonotonicNanos,
                                 captureUptimeMillis,
+                                displayId,
                                 pointerIndex,
                                 -1));
             }
