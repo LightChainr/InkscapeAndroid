@@ -34,7 +34,7 @@ final class SessionMetadata {
         json.put("versionName", info.versionName == null ? "unknown" : info.versionName);
         json.put("versionCode", info.getLongVersionCode());
         json.put("buildType", debuggable ? "debug" : "release");
-        json.put("gitSha", "unknown");
+        json.put("gitSha", BuildConfig.GIT_SHA);
         return json;
     }
 
