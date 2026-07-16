@@ -4,19 +4,17 @@ import android.app.Activity;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 
-import org.json.JSONObject;
-
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class MainActivity extends Activity {
     private InputProbeView probeView;
@@ -46,14 +44,14 @@ public final class MainActivity extends Activity {
 
     private static final class InputProbeView extends View {
         private static final int MAX_VISIBLE_LINES = 18;
-        private static final int FLUSH_INTERVAL = 8;
-        private static final long NANOS_PER_MILLISECOND = 1_000_000L;
+        private static final int WRITER_QUEUE_CAPACITY = 8192;
 
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final ArrayDeque<String> recentLines = new ArrayDeque<>();
+        private final AtomicLong sequence = new AtomicLong();
+        private final String sessionId = UUID.randomUUID().toString();
         private final File logFile;
-        private BufferedWriter writer;
-        private int recordsSinceFlush;
+        private AsyncJsonlWriter logWriter;
 
         InputProbeView(Activity activity) {
             super(activity);
@@ -70,12 +68,14 @@ public final class MainActivity extends Activity {
             }
             logFile = new File(logDir, "events.jsonl");
             try {
-                writer = new BufferedWriter(new FileWriter(logFile, true));
-            } catch (IOException error) {
+                logWriter = new AsyncJsonlWriter(logFile, sessionId, WRITER_QUEUE_CAPACITY);
+                logWriter.enqueueJson(SessionMetadata.create(activity, sessionId));
+            } catch (Exception error) {
                 addVisibleLine("ERROR opening log: " + error.getMessage());
             }
+            addVisibleLine("Session: " + sessionId);
             addVisibleLine("Log: " + logFile.getAbsolutePath());
-            addVisibleLine("Touch, hover and stylus events are recorded as JSONL.");
+            addVisibleLine("Primitive snapshots are encoded and written on a background thread.");
         }
 
         @Override
@@ -106,109 +106,69 @@ public final class MainActivity extends Activity {
         }
 
         private void record(MotionEvent event, String dispatchPath) {
-            final long arrivalTimeNanos = System.nanoTime();
+            final AsyncJsonlWriter writer = logWriter;
+            if (writer == null) {
+                return;
+            }
+
+            final long captureMonotonicNanos = System.nanoTime();
+            final long captureUptimeMillis = SystemClock.uptimeMillis();
             final int pointerCount = event.getPointerCount();
             final int historySize = event.getHistorySize();
 
             for (int historyIndex = 0; historyIndex < historySize; historyIndex++) {
                 for (int pointerIndex = 0; pointerIndex < pointerCount; pointerIndex++) {
-                    writeRecord(event, dispatchPath, arrivalTimeNanos, pointerIndex, historyIndex);
+                    enqueueSample(
+                            writer,
+                            EventSample.capture(
+                                    event,
+                                    sessionId,
+                                    sequence.incrementAndGet(),
+                                    dispatchPath,
+                                    captureMonotonicNanos,
+                                    captureUptimeMillis,
+                                    pointerIndex,
+                                    historyIndex));
                 }
             }
             for (int pointerIndex = 0; pointerIndex < pointerCount; pointerIndex++) {
-                writeRecord(event, dispatchPath, arrivalTimeNanos, pointerIndex, -1);
+                enqueueSample(
+                        writer,
+                        EventSample.capture(
+                                event,
+                                sessionId,
+                                sequence.incrementAndGet(),
+                                dispatchPath,
+                                captureMonotonicNanos,
+                                captureUptimeMillis,
+                                pointerIndex,
+                                -1));
             }
 
             int actionIndex = Math.min(event.getActionIndex(), pointerCount - 1);
             String summary = String.format(
                     Locale.US,
-                    "%s action=%s pointers=%d id=%d tool=%s p=%.3f flags=0x%X",
+                    "%s action=%s pointers=%d id=%d tool=%s p=%.3f q=%d drop=%d",
                     dispatchPath,
                     actionName(event.getActionMasked()),
                     pointerCount,
                     event.getPointerId(actionIndex),
                     toolName(event.getToolType(actionIndex)),
                     event.getPressure(actionIndex),
-                    event.getFlags());
+                    writer.queueSize(),
+                    writer.pendingDropCount());
             addVisibleLine(summary);
+            String writerFailure = writer.failureMessage();
+            if (writerFailure != null) {
+                addVisibleLine("ERROR writer: " + writerFailure);
+            }
             invalidate();
         }
 
-        private void writeRecord(
-                MotionEvent event,
-                String dispatchPath,
-                long arrivalTimeNanos,
-                int pointerIndex,
-                int historyIndex) {
-            if (writer == null) {
-                return;
+        private void enqueueSample(AsyncJsonlWriter writer, EventSample sample) {
+            if (!writer.enqueue(sample) && writer.pendingDropCount() == 1L) {
+                addVisibleLine("WARN writer queue full; drop record will be emitted");
             }
-
-            final boolean historical = historyIndex >= 0;
-            try {
-                JSONObject json = new JSONObject();
-                json.put("dispatchPath", dispatchPath);
-                json.put("historical", historical);
-                json.put("arrivalTimeNanos", arrivalTimeNanos);
-                json.put("eventTimeNanos", eventTimeNanos(event, historyIndex));
-                json.put("actionMasked", event.getActionMasked());
-                json.put("actionIndex", event.getActionIndex());
-                json.put("pointerCount", event.getPointerCount());
-                json.put("pointerIndex", pointerIndex);
-                json.put("pointerId", event.getPointerId(pointerIndex));
-                json.put("toolType", event.getToolType(pointerIndex));
-                json.put("source", event.getSource());
-                json.put("deviceId", event.getDeviceId());
-                json.put("buttonState", event.getButtonState());
-                json.put("metaState", event.getMetaState());
-                json.put("flags", event.getFlags());
-                json.put("historySize", event.getHistorySize());
-
-                if (historical) {
-                    json.put("x", event.getHistoricalX(pointerIndex, historyIndex));
-                    json.put("y", event.getHistoricalY(pointerIndex, historyIndex));
-                    json.put("pressure", event.getHistoricalPressure(pointerIndex, historyIndex));
-                    json.put("orientation", event.getHistoricalOrientation(pointerIndex, historyIndex));
-                    json.put(
-                            "tilt",
-                            event.getHistoricalAxisValue(
-                                    MotionEvent.AXIS_TILT, pointerIndex, historyIndex));
-                    json.put(
-                            "distance",
-                            event.getHistoricalAxisValue(
-                                    MotionEvent.AXIS_DISTANCE, pointerIndex, historyIndex));
-                } else {
-                    json.put("x", event.getX(pointerIndex));
-                    json.put("y", event.getY(pointerIndex));
-                    json.put("pressure", event.getPressure(pointerIndex));
-                    json.put("orientation", event.getOrientation(pointerIndex));
-                    json.put("tilt", event.getAxisValue(MotionEvent.AXIS_TILT, pointerIndex));
-                    json.put(
-                            "distance",
-                            event.getAxisValue(MotionEvent.AXIS_DISTANCE, pointerIndex));
-                }
-
-                writer.write(json.toString());
-                writer.newLine();
-                recordsSinceFlush++;
-                if (recordsSinceFlush >= FLUSH_INTERVAL) {
-                    flush();
-                }
-            } catch (Exception error) {
-                addVisibleLine("ERROR recording event: " + error.getMessage());
-            }
-        }
-
-        private static long eventTimeNanos(MotionEvent event, int historyIndex) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                return historyIndex >= 0
-                        ? event.getHistoricalEventTimeNanos(historyIndex)
-                        : event.getEventTimeNanos();
-            }
-            long eventTimeMillis = historyIndex >= 0
-                    ? event.getHistoricalEventTime(historyIndex)
-                    : event.getEventTime();
-            return eventTimeMillis * NANOS_PER_MILLISECOND;
         }
 
         private void addVisibleLine(String line) {
@@ -219,28 +179,15 @@ public final class MainActivity extends Activity {
         }
 
         void flush() {
-            if (writer == null) {
-                return;
-            }
-            try {
-                writer.flush();
-                recordsSinceFlush = 0;
-            } catch (IOException error) {
-                addVisibleLine("ERROR flushing log: " + error.getMessage());
+            if (logWriter != null) {
+                logWriter.flush();
             }
         }
 
         void close() {
-            if (writer == null) {
-                return;
-            }
-            try {
-                writer.flush();
-                writer.close();
-            } catch (IOException error) {
-                addVisibleLine("ERROR closing log: " + error.getMessage());
-            } finally {
-                writer = null;
+            if (logWriter != null) {
+                logWriter.close();
+                logWriter = null;
             }
         }
 
