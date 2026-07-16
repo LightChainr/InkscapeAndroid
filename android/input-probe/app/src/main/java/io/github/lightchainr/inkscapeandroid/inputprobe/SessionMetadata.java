@@ -3,7 +3,6 @@ package io.github.lightchainr.inkscapeandroid.inputprobe;
 import android.app.Activity;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.DisplayMetrics;
 import android.view.Display;
@@ -28,7 +27,7 @@ final class SessionMetadata {
         return root.toString();
     }
 
-    private static JSONObject app(Activity activity) throws PackageManager.NameNotFoundException {
+    private static JSONObject app(Activity activity) throws Exception {
         PackageInfo info = activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0);
         boolean debuggable = (activity.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         JSONObject json = new JSONObject();
