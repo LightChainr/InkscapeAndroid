@@ -1,0 +1,25 @@
+# P2 must replace empty commits with verified immutable SHAs.
+format_version = 1
+status = "unvalidated"
+
+[inkscape]
+url = "https://gitlab.com/inkscape/inkscape.git"
+commit = ""
+
+[gtk]
+url = "https://gitlab.gnome.org/GNOME/gtk.git"
+commit = ""
+
+[pixiewood]
+url = "https://github.com/sp1ritCS/gtk-android-builder.git"
+commit = ""
+ref_note = "android36 baseline candidate"
+
+[android]
+abi = "arm64-v8a"
+min_sdk = 31
+compile_sdk = 36
+target_sdk = 36
+ndk = "27.2.12479018"
+build_tools = "35.0.0"
+stl = "c++_shared"
