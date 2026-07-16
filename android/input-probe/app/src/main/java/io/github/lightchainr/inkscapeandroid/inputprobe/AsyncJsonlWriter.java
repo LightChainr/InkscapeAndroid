@@ -21,6 +21,8 @@ final class AsyncJsonlWriter {
         String toJsonLine() throws Exception;
     }
 
+    private static final int AUTO_FLUSH_RECORDS = 256;
+
     private static final class FlushCommand {
         final CountDownLatch done = new CountDownLatch(1);
     }
@@ -109,6 +111,8 @@ final class AsyncJsonlWriter {
         CloseCommand command = new CloseCommand();
         if (offerControl(command)) {
             await(command.done);
+        } else {
+            worker.interrupt();
         }
         try {
             worker.join(2000L);
@@ -119,7 +123,7 @@ final class AsyncJsonlWriter {
 
     private boolean offerControl(Object command) {
         try {
-            return queue.offer(command, 500L, TimeUnit.MILLISECONDS);
+            return queue.offer(command, 2L, TimeUnit.SECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             failure.compareAndSet(null, "interrupted while queueing writer control command");
@@ -136,16 +140,23 @@ final class AsyncJsonlWriter {
     }
 
     private void runWorker() {
+        int writtenSinceFlush = 0;
         try {
             boolean running = true;
             while (running) {
                 Object item = queue.take();
-                emitDropRecordIfNeeded();
+                writtenSinceFlush += emitDropRecordIfNeeded();
                 if (item instanceof JsonRecord record) {
                     writer.write(record.toJsonLine());
                     writer.newLine();
+                    writtenSinceFlush++;
+                    if (writtenSinceFlush >= AUTO_FLUSH_RECORDS) {
+                        writer.flush();
+                        writtenSinceFlush = 0;
+                    }
                 } else if (item instanceof FlushCommand flush) {
                     writer.flush();
+                    writtenSinceFlush = 0;
                     flush.done.countDown();
                 } else if (item instanceof CloseCommand close) {
                     writer.flush();
@@ -153,6 +164,9 @@ final class AsyncJsonlWriter {
                     running = false;
                 }
             }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            failure.compareAndSet(null, "writer thread interrupted");
         } catch (Exception error) {
             failure.compareAndSet(null, error.getClass().getSimpleName() + ": " + error.getMessage());
         } finally {
@@ -166,10 +180,10 @@ final class AsyncJsonlWriter {
         }
     }
 
-    private void emitDropRecordIfNeeded() throws Exception {
+    private int emitDropRecordIfNeeded() throws Exception {
         long count = droppedRecords.getAndSet(0L);
         if (count == 0L) {
-            return;
+            return 0;
         }
         JSONObject json = new JSONObject();
         json.put("schemaVersion", EventSample.SCHEMA_VERSION);
@@ -180,5 +194,6 @@ final class AsyncJsonlWriter {
         json.put("queueCapacity", capacity);
         writer.write(json.toString());
         writer.newLine();
+        return 1;
     }
 }
