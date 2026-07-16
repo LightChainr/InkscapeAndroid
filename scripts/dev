@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+usage() {
+  cat <<'USAGE'
+Usage: bash scripts/dev <command>
+
+Commands:
+  doctor        Check Mac/Android development environment
+  plan          Print the staged technical gates
+  lock-check    Validate lock files without building
+  repo-check    Check that generated/binary paths are not tracked
+USAGE
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  doctor)
+    exec bash "$ROOT/scripts/doctor-macos.sh"
+    ;;
+  plan)
+    cat "$ROOT/docs/stage-gates.md"
+    ;;
+  lock-check)
+    python3 - "$ROOT" <<'PY'
+import pathlib, sys, tomllib
+root = pathlib.Path(sys.argv[1])
+with (root / "sources.lock.toml").open("rb") as f:
+    data = tomllib.load(f)
+assert data["format_version"] == 1
+assert data["android"]["abi"] == "arm64-v8a"
+print(f"lock status: {data['status']}")
+if data["status"] == "validated":
+    for name in ("inkscape", "gtk", "pixiewood"):
+        assert data[name]["commit"], f"missing validated commit: {name}"
+PY
+    ;;
+  repo-check)
+    bad="$(git -C "$ROOT" ls-files | grep -E '(^|/)(\.work|\.out|\.cache|build|_build|\.pixiewood)(/|$)|\.(apk|aab|so|a|dylib)$' || true)"
+    if [[ -n "$bad" ]]; then
+      echo "Generated or binary files are tracked:" >&2
+      echo "$bad" >&2
+      exit 1
+    fi
+    echo "repository tracking policy: OK"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
