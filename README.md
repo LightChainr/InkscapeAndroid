@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-本仓库处于 **P0：框架初始化**。
+本仓库处于 **P0：框架初始化**，并已加入 P1 输入探针工程。
 
 已定义的首个编辑闭环：
 
@@ -62,6 +62,18 @@ bash scripts/dev doctor
 ```
 
 `doctor` 只检查环境，不修改系统。
+
+## P1 输入探针
+
+输入探针是独立 Android 工程，不依赖 GTK 或 Inkscape：
+
+```sh
+cd android/input-probe
+gradle :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+GitHub Actions 工作流 `Input probe build` 会使用 JDK 17、AGP 9.2.0 和 Gradle 9.4.1 构建 debug APK。探针日志写入应用私有目录的 `input-probe/events.jsonl`。
 
 ## 开发原则
 
