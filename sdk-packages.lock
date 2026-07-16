@@ -1,0 +1,5 @@
+# Baseline candidate. P2 must validate this exact set.
+platform-tools
+platforms;android-36
+build-tools;35.0.0
+ndk;27.2.12479018
