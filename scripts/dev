@@ -2,20 +2,30 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="$ROOT/.out"
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/dev <command>
+Usage: bash scripts/dev <command> [args]
 
 Commands:
-  doctor        Check Mac/Android development environment
-  plan          Print the staged technical gates
-  lock-check    Validate lock files without building
-  repo-check    Check that generated/binary paths are not tracked
+  doctor                         Check Mac/Android development environment
+  plan                           Print the staged technical gates
+  lock-check                     Validate lock files without building
+  candidates-check [--network]   Validate candidate SHAs; optionally fetch official remotes
+  core-test                      Build and test the platform-independent C++ input core
+  probe-analyze <events.jsonl>   Validate and summarize an input probe log
+  target-preflight [args]        Check Android sysroot pkg-config dependencies
+  repo-check                     Check that generated/binary paths are not tracked
+  test                           Run all host-side pre-engineering checks
 USAGE
 }
 
 cmd="${1:-}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
 case "$cmd" in
   doctor)
     exec bash "$ROOT/scripts/doctor-macos.sh"
@@ -37,6 +47,27 @@ if data["status"] == "validated":
         assert data[name]["commit"], f"missing validated commit: {name}"
 PY
     ;;
+  candidates-check)
+    exec python3 "$ROOT/scripts/verify-source-candidates.py" "$@"
+    ;;
+  core-test)
+    build="$OUT/core-tablet-input"
+    cmake -S "$ROOT/core/tablet-input" -B "$build" -G Ninja \
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DTABLET_INPUT_BUILD_TESTS=ON
+    cmake --build "$build"
+    ctest --test-dir "$build" --output-on-failure
+    ;;
+  probe-analyze)
+    if [[ $# -ne 1 ]]; then
+      echo "probe-analyze requires one JSONL path" >&2
+      exit 2
+    fi
+    exec python3 "$ROOT/tools/analyze_input_probe.py" "$1" --strict
+    ;;
+  target-preflight)
+    exec python3 "$ROOT/scripts/check-inkscape-cross-preconditions.py" "$@"
+    ;;
   repo-check)
     bad="$(git -C "$ROOT" ls-files | grep -E '(^|/)(\.work|\.out|\.cache|build|_build|\.pixiewood)(/|$)|\.(apk|aab|so|a|dylib)$' || true)"
     if [[ -n "$bad" ]]; then
@@ -45,6 +76,13 @@ PY
       exit 1
     fi
     echo "repository tracking policy: OK"
+    ;;
+  test)
+    bash "$ROOT/scripts/dev" lock-check
+    bash "$ROOT/scripts/dev" candidates-check
+    python3 -m unittest discover -s "$ROOT/tools/tests" -p 'test_*.py' -v
+    bash "$ROOT/scripts/dev" core-test
+    bash "$ROOT/scripts/dev" repo-check
     ;;
   *)
     usage
