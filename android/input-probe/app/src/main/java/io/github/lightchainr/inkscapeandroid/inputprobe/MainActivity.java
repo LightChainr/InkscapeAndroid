@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
@@ -46,6 +47,7 @@ public final class MainActivity extends Activity {
     private static final class InputProbeView extends View {
         private static final int MAX_VISIBLE_LINES = 18;
         private static final int FLUSH_INTERVAL = 8;
+        private static final long NANOS_PER_MILLISECOND = 1_000_000L;
 
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final ArrayDeque<String> recentLines = new ArrayDeque<>();
@@ -148,11 +150,7 @@ public final class MainActivity extends Activity {
                 json.put("dispatchPath", dispatchPath);
                 json.put("historical", historical);
                 json.put("arrivalTimeNanos", arrivalTimeNanos);
-                json.put(
-                        "eventTimeNanos",
-                        historical
-                                ? event.getHistoricalEventTimeNanos(historyIndex)
-                                : event.getEventTimeNanos());
+                json.put("eventTimeNanos", eventTimeNanos(event, historyIndex));
                 json.put("actionMasked", event.getActionMasked());
                 json.put("actionIndex", event.getActionIndex());
                 json.put("pointerCount", event.getPointerCount());
@@ -199,6 +197,18 @@ public final class MainActivity extends Activity {
             } catch (Exception error) {
                 addVisibleLine("ERROR recording event: " + error.getMessage());
             }
+        }
+
+        private static long eventTimeNanos(MotionEvent event, int historyIndex) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                return historyIndex >= 0
+                        ? event.getHistoricalEventTimeNanos(historyIndex)
+                        : event.getEventTimeNanos();
+            }
+            long eventTimeMillis = historyIndex >= 0
+                    ? event.getHistoricalEventTime(historyIndex)
+                    : event.getEventTime();
+            return eventTimeMillis * NANOS_PER_MILLISECOND;
         }
 
         private void addVisibleLine(String line) {
