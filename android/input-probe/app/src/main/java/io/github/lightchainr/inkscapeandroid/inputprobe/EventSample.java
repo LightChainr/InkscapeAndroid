@@ -142,6 +142,7 @@ final class EventSample implements AsyncJsonlWriter.JsonRecord {
             String dispatchPath,
             long captureMonotonicNanos,
             long captureUptimeMillis,
+            int displayId,
             int pointerIndex,
             int historyIndex) {
         boolean historical = historyIndex >= 0;
@@ -224,7 +225,7 @@ final class EventSample implements AsyncJsonlWriter.JsonRecord {
                 event.getToolType(pointerIndex),
                 event.getSource(),
                 event.getDeviceId(),
-                event.getDisplayId(),
+                displayId,
                 event.getButtonState(),
                 event.getMetaState(),
                 event.getFlags(),
