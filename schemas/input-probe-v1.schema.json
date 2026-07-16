@@ -60,11 +60,11 @@
           "type": "object",
           "required": [
             "recordType", "sequence", "dispatchPath", "sampleKind",
-            "captureMonotonicNanos", "captureUptimeMillis", "eventTimeMillis",
-            "actionMasked", "actionIndex", "pointerCount", "pointerIndex",
-            "pointerId", "isActionPointer", "toolType", "source", "deviceId",
-            "buttonState", "metaState", "flags", "historySize",
-            "x", "y", "pressure", "orientation", "tilt", "distance"
+            "captureMonotonicNanos", "captureUptimeMillis", "eventTimeMillis", "eventTimeNanos", "downTimeMillis",
+            "actionMasked", "actionIndex", "actionButton", "pointerCount", "pointerIndex", "pointerId", "isActionPointer",
+            "toolType", "source", "deviceId", "displayId", "buttonState", "metaState", "flags", "edgeFlags", "classification", "historySize",
+            "x", "y", "rawX", "rawY", "pressure", "orientation", "tilt", "distance", "size",
+            "touchMajor", "touchMinor", "toolMajor", "toolMinor", "xPrecision", "yPrecision"
           ],
           "properties": {
             "recordType": { "const": "event" },
