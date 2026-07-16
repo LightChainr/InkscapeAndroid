@@ -1,0 +1,38 @@
+# Generated working trees and build outputs
+.cache/
+.work/
+.out/
+build/
+_build/
+.pixiewood/
+.gradle/
+.idea/
+.DS_Store
+
+# Android artifacts
+*.apk
+*.aab
+*.aar
+*.jks
+*.keystore
+local.properties
+
+# Native artifacts
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dSYM/
+compile_commands.json
+
+# Logs and diagnostics
+*.log
+*.jsonl
+reports/
+diagnostics/
+
+# Editors
+.vscode/
+*.swp
+*~
