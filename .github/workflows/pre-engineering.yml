@@ -1,0 +1,59 @@
+name: Pre-engineering checks
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-engineering-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure Ninja is available
+        run: |
+          if ! command -v ninja >/dev/null 2>&1; then
+            python3 -m pip install ninja
+          fi
+
+      - name: Validate manifests and candidate SHAs
+        run: |
+          bash scripts/dev lock-check
+          bash scripts/dev candidates-check
+          python3 - <<'PY'
+          import json, tomllib
+          from pathlib import Path
+          json.loads(Path('schemas/input-probe-v1.schema.json').read_text(encoding='utf-8'))
+          with Path('deps/android-target-dependencies.toml').open('rb') as handle:
+              manifest = tomllib.load(handle)
+          assert manifest['format_version'] == 1
+          assert manifest['required_pkg_config']['packages']
+          PY
+
+      - name: Run Python analyzer tests
+        run: python3 -m unittest discover -s tools/tests -p 'test_*.py' -v
+
+      - name: Build and test C++ tablet input core
+        run: bash scripts/dev core-test
+
+      - name: Validate repository tracking policy
+        run: bash scripts/dev repo-check
