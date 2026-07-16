@@ -1,0 +1,35 @@
+name: Scaffold check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate repository policy and locks
+        run: |
+          bash scripts/dev lock-check
+          bash scripts/dev repo-check
+      - name: Validate required scaffold
+        run: |
+          test -f docs/migration-plan.zh-CN.md
+          test -f docs/open-source-reference-assessment.zh-CN.md
+          test -f docs/stage-gates.md
+          test -f android/input-probe/README.md
+          test -f android/interaction-lab/README.md
+          test -f android/host/README.md
+      - name: Check Markdown fences
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          failures = []
+          for p in Path('.').rglob('*.md'):
+              text = p.read_text(encoding='utf-8')
+              if text.count('```') % 2:
+                  failures.append(str(p))
+          if failures:
+              raise SystemExit('Unclosed Markdown fences: ' + ', '.join(failures))
+          PY
