@@ -51,13 +51,16 @@ jobs:
 
       - name: Lint, test and build debug APK
         working-directory: android/input-probe
+        shell: bash
         run: |
+          set -o pipefail
           gradle \
             :app:lintDebug \
             :app:testDebugUnitTest \
             :app:assembleDebug \
             --stacktrace \
-            --warning-mode all
+            --warning-mode all \
+            2>&1 | tee ../../input-probe-gradle.log
 
       - name: Verify APK output
         run: |
@@ -70,6 +73,7 @@ jobs:
         with:
           name: input-probe-reports
           path: |
+            input-probe-gradle.log
             android/input-probe/app/build/reports/
             input-probe-apk-contents.txt
           if-no-files-found: warn
