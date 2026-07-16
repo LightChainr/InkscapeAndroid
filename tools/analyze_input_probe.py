@@ -16,6 +16,7 @@ from typing import Any, Iterable
 SCHEMA_VERSION = 1
 ACTION_CANCEL = 3
 ACTION_POINTER_UP = 6
+FLAG_CANCELED = 0x20
 
 BASE_REQUIRED = {"schemaVersion", "recordType", "sessionId"}
 SESSION_REQUIRED = {"createdWallTimeMillis", "app", "device", "display", "inputDevices"}
@@ -26,6 +27,7 @@ EVENT_REQUIRED = {
     "captureMonotonicNanos",
     "captureUptimeMillis",
     "eventTimeMillis",
+    "downTimeMillis",
     "actionMasked",
     "actionIndex",
     "pointerCount",
@@ -63,8 +65,9 @@ class Report:
     warnings: list[str] = field(default_factory=list)
     dropped_records: int = 0
     cancel_records: int = 0
-    pointer_up_with_flags: int = 0
-    current_event_times: dict[tuple[str, int, int], list[int]] = field(
+    canceled_pointer_records: int = 0
+    pointer_up_with_other_flags: int = 0
+    current_event_times: dict[tuple[str, int, int, int, str], list[int]] = field(
         default_factory=lambda: collections.defaultdict(list)
     )
     last_sequence: dict[str, int] = field(default_factory=dict)
@@ -140,8 +143,10 @@ class Report:
 
         if action == ACTION_CANCEL:
             self.cancel_records += 1
-        if action == ACTION_POINTER_UP and flags != 0:
-            self.pointer_up_with_flags += 1
+        if action in {ACTION_CANCEL, ACTION_POINTER_UP} and flags & FLAG_CANCELED:
+            self.canceled_pointer_records += 1
+        elif action == ACTION_POINTER_UP and flags != 0:
+            self.pointer_up_with_other_flags += 1
 
         pointer_count = record["pointerCount"]
         pointer_index = record["pointerIndex"]
@@ -154,6 +159,7 @@ class Report:
             "captureMonotonicNanos",
             "captureUptimeMillis",
             "eventTimeMillis",
+            "downTimeMillis",
             "x",
             "y",
             "pressure",
@@ -167,7 +173,13 @@ class Report:
                 self.errors.append(f"line {line_number}: invalid numeric field {field_name}")
 
         if sample_kind == "current":
-            key = (session_id, record["deviceId"], record["pointerId"])
+            key = (
+                session_id,
+                record["deviceId"],
+                record["pointerId"],
+                record["downTimeMillis"],
+                dispatch,
+            )
             self.current_event_times[key].append(record["eventTimeMillis"])
 
     def interval_summary(self) -> dict[str, float | int | None]:
@@ -198,7 +210,8 @@ class Report:
             "dispatchCounts": dict(sorted(self.dispatch_counts.items())),
             "flagCounts": {str(k): v for k, v in sorted(self.flag_counts.items())},
             "cancelRecords": self.cancel_records,
-            "pointerUpWithFlags": self.pointer_up_with_flags,
+            "canceledPointerRecords": self.canceled_pointer_records,
+            "pointerUpWithOtherFlags": self.pointer_up_with_other_flags,
             "droppedRecords": self.dropped_records,
             "sampleIntervals": self.interval_summary(),
             "errors": self.errors,
